@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Application Tracker — AI Job Search Guide</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header>
+  <h1>Application Tracker</h1>
+  <p>Keep track of your job applications. Everything saves in your browser only — nothing is sent over the internet.</p>
+</header>
+
+<nav>
+  <ul>
+    <li><a href="index.html">Guide</a></li>
+    <li><a href="tracker.html" aria-current="page">Tracker</a></li>
+  </ul>
+</nav>
+
+<div class="container">
+  <main>
+    <div class="tracker-header">
+      <div>
+        <h2>Add an Application</h2>
+      </div>
+      <button class="add-btn" id="addBtn">Add Application</button>
+    </div>
+
+    <div class="privacy-box">
+      <strong>Privacy:</strong> This tracker uses your browser's local storage. Your data stays on your computer and is never uploaded anywhere. If you clear your browser data, your saved applications will be deleted. Export your data if you want a backup.
+    </div>
+
+    <form id="appForm">
+      <div class="form-grid">
+        <div>
+          <label for="company">Company</label>
+          <input type="text" id="company" required placeholder="e.g. Mercy General Hospital">
+        </div>
+        <div>
+          <label for="jobTitle">Job Title</label>
+          <input type="text" id="jobTitle" required placeholder="e.g. Charge Nurse">
+        </div>
+        <div>
+          <label for="dateApplied">Date Applied</label>
+          <input type="date" id="dateApplied" required>
+        </div>
+        <div>
+          <label for="status">Status</label>
+          <select id="status" required>
+            <option value="Applied">Applied</option>
+            <option value="Interviewing">Interviewing</option>
+            <option value="Offer">Offer</option>
+            <option value="Declined">Declined</option>
+            <option value="No response">No response</option>
+          </select>
+        </div>
+        <div>
+          <label for="contact">Contact</label>
+          <input type="text" id="contact" placeholder="Hiring manager or recruiter">
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label for="notes">Notes</label>
+          <textarea id="notes" rows="2" placeholder="Follow-up date, next steps, etc."></textarea>
+        </div>
+      </div>
+    </form>
+
+    <h2>Your Applications</h2>
+    <table id="appsTable">
+      <thead>
+        <tr>
+          <th>Company</th>
+          <th>Job Title</th>
+          <th>Date Applied</th>
+          <th>Status</th>
+          <th>Contact</th>
+          <th>Notes</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="appsBody"></tbody>
+    </table>
+
+    <div id="exportBox" style="margin-top: 1rem;">
+      <label style="display:block; font-size:0.8rem; color:#6b7280; margin-bottom:0.25rem;">Backup your data</label>
+      <button id="exportBtn" style="padding:0.5rem 0.75rem; font-size:0.9rem;">Export to JSON file</button>
+      <input type="file" id="importInput" accept=".json" style="margin-top:0.5rem; font-size:0.9rem;">
+      <p id="importMsg" style="font-size:0.8rem; color:#6b7280; margin-top:0.25rem;"></p>
+    </div>
+  </main>
+</div>
+
+<footer>
+  Asdale Dynamics, LLC &middot; Copyright (c) 2026 Asdale Dynamics, LLC
+</footer>
+
+<script>
+(function () {
+  const STORAGE_KEY = 'aiJobSearch_applications_v1';
+  const companyInput = document.getElementById('company');
+  const jobTitleInput = document.getElementById('jobTitle');
+  const dateInput = document.getElementById('dateApplied');
+  const statusSelect = document.getElementById('status');
+  const contactInput = document.getElementById('contact');
+  const notesInput = document.getElementById('notes');
+  const addBtn = document.getElementById('addBtn');
+  const appForm = document.getElementById('appForm');
+  const appsBody = document.getElementById('appsBody');
+  const exportBtn = document.getElementById('exportBtn');
+  const importInput = document.getElementById('importInput');
+  const importMsg = document.getElementById('importMsg');
+
+  let editingId = null;
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function save(apps) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(apps));
+  }
+
+  let apps = load();
+
+  function escapeHtml(text) {
+    if (text == null) return '';
+    const div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML;
+  }
+
+  function render() {
+    appsBody.innerHTML = '';
+    if (apps.length === 0) {
+      appsBody.innerHTML = '<tr><td colspan="7" class="empty">No applications yet. Add your first one above.</td></tr>';
+      return;
+    }
+    // Show newest first
+    const sorted = [...apps].sort((a, b) => new Date(b.dateApplied || 0) - new Date(a.dateApplied || 0));
+    sorted.forEach(function (app) {
+      const tr = document.createElement('tr');
+      const statusClass = 'status-' + String(app.status).replace(/\s/g, '').replace(/[^a-zA-Z0-9-]/g, '');
+      tr.innerHTML =
+        '<td>' + escapeHtml(app.company) + '</td>' +
+        '<td>' + escapeHtml(app.jobTitle) + '</td>' +
+        '<td>' + escapeHtml(app.dateApplied) + '</td>' +
+        '<td><span class="status-badge ' + escapeHtml(statusClass) + '">' + escapeHtml(app.status) + '</span></td>' +
+        '<td>' + escapeHtml(app.contact) + '</td>' +
+        '<td>' + escapeHtml(app.notes) + '</td>' +
+        '<td><button class="btn-delete" data-id="' + escapeHtml(app.id) + '" title="Delete">Delete</button></td>';
+      appsBody.appendChild(tr);
+    });
+  }
+
+  function addApp(app) {
+    apps.push(app);
+    save(apps);
+    render();
+  }
+
+  function deleteApp(id) {
+    apps = apps.filter(function (a) { return a.id !== id; });
+    save(apps);
+    render();
+  }
+
+  addBtn.addEventListener('click', function (e) {
+    e.preventDefault();
+    if (!appForm.checkValidity()) {
+      appForm.reportValidity();
+      return;
+    }
+    const app = {
+      id: Date.now().toString(),
+      company: companyInput.value.trim(),
+      jobTitle: jobTitleInput.value.trim(),
+      dateApplied: dateInput.value,
+      status: statusSelect.value,
+      contact: contactInput.value.trim(),
+      notes: notesInput.value.trim()
+    };
+    addApp(app);
+    appForm.reset();
+    dateInput.value = new Date().toISOString().split('T')[0];
+  });
+
+  appsBody.addEventListener('click', function (e) {
+    if (e.target && e.target.classList.contains('btn-delete')) {
+      deleteApp(e.target.getAttribute('data-id'));
+    }
+  });
+
+  exportBtn.addEventListener('click', function () {
+    const data = JSON.stringify(apps, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'ai-job-search-applications.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+  importInput.addEventListener('change', function (e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function () {
+      try {
+        const imported = JSON.parse(reader.result);
+        if (!Array.isArray(imported)) throw new Error('Not a list');
+        apps = imported;
+        save(apps);
+        render();
+        importMsg.textContent = 'Imported ' + apps.length + ' applications.';
+        importMsg.style.color = '#166534';
+        importInput.value = '';
+      } catch (err) {
+        importMsg.textContent = 'Import failed: invalid file.';
+        importMsg.style.color = '#991b1b';
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  // Default today's date
+  dateInput.value = new Date().toISOString().split('T')[0];
+
+  render();
+})();
+</script>
+</body>
+</html>
